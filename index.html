@@ -118,10 +118,10 @@
     100%   { transform: translateX(-54px); }
   }
 
-  /* ---- 4. dark window: TV switches on, flickers, switches off ---- */
-  .tv { opacity: 0; }
-  .playing .tv { animation: tvFlicker 2.8s step-end both; }
-  @keyframes tvFlicker {
+  /* ---- 4. dark window: light switches on, flickers, switches off ---- */
+  .flicker { opacity: 0; }
+  .playing .flicker { animation: windowFlicker 2.8s step-end both; }
+  @keyframes windowFlicker {
     0%    { opacity: 0; }
     1.5%  { opacity: 1; }      /* snaps on */
     3.5%  { opacity: .3; }
@@ -159,7 +159,7 @@
   @media (prefers-reduced-motion: reduce) {
     .playing .cat-hop, .playing .cat-tail, .playing .cat-head,
     .playing .blind, .playing .person-rise, .playing .dancer-sheet,
-    .playing .tv {
+    .playing .flicker {
       animation-duration: .01ms;
       animation-iteration-count: 1;
     }
@@ -194,13 +194,15 @@
         <rect x="0" y="1.7" width="10.4" height="0.9" fill="#b5755f"/>
         <rect x="0" y="2.6" width="10.4" height="7.8" fill="#84545f"/>
       </pattern>
-      <!-- screen light: cool, so it reads as a TV against the warm windows -->
-      <linearGradient id="tvLight" x1="0" y1="0" x2="1" y2="0">
-        <stop offset="0" stop-color="#61749f"/>
-        <stop offset=".55" stop-color="#93aed3"/>
-        <stop offset="1" stop-color="#bcd2ea"/>
+      <!-- Same lamp light as the building's other windows: a dim band and a
+           bright band with a hard edge, sampled from the lit window below. -->
+      <linearGradient id="windowLight" x1="0" y1="0" x2="1" y2="0">
+        <stop offset="0" stop-color="#b36855"/>
+        <stop offset=".53" stop-color="#b36855"/>
+        <stop offset=".53" stop-color="#f7af6a"/>
+        <stop offset="1" stop-color="#f7af6a"/>
       </linearGradient>
-      <filter id="tvBloom" x="-80%" y="-80%" width="260%" height="260%">
+      <filter id="flickerBloom" x="-80%" y="-80%" width="260%" height="260%">
         <feGaussianBlur stdDeviation="3.5"/>
       </filter>
 
@@ -274,23 +276,23 @@
             d="M183,651 L237,651 L237,754 L183,754 Z"/>
     </g>
 
-    <!-- ====== 4. mid-ground building, unlit window: TV switches on ====== -->
+    <!-- ===== 4. mid-ground building, unlit window: light switches on ===== -->
     <g class="win" data-dur="2800">
-      <path class="glow glow-bloom" fill="#8fb6de" d="M642.5,705.5 H658.5 V720.5 H642.5 Z M642.5,722.5 H658.5 V736 H642.5 Z"/>
-      <path class="glow glow-core"  fill="#bcd2ea" d="M642.5,705.5 H658.5 V720.5 H642.5 Z M642.5,722.5 H658.5 V736 H642.5 Z"/>
+      <path class="glow glow-bloom" fill="#ffc078" d="M642.5,705.5 H658.5 V720.5 H642.5 Z M642.5,722.5 H658.5 V736 H642.5 Z"/>
+      <path class="glow glow-core"  fill="#ffd8a4" d="M642.5,705.5 H658.5 V720.5 H642.5 Z M642.5,722.5 H658.5 V736 H642.5 Z"/>
 
       <g class="anim">
-        <g class="tv">
+        <g class="flicker">
           <!-- light spilling past the reveal, same trick as the hover bloom -->
-          <rect x="642.5" y="705.5" width="16" height="30.5" fill="#8fb6de"
-                opacity=".45" filter="url(#tvBloom)"/>
+          <rect x="642.5" y="705.5" width="16" height="30.5" fill="#ffc078"
+                opacity=".45" filter="url(#flickerBloom)"/>
           <!-- two panes with the sash left dark, matching the lit windows nearby -->
-          <rect x="642.5" y="705.5" width="16" height="15" fill="url(#tvLight)"/>
-          <rect x="642.5" y="722.5" width="16" height="13.5" fill="url(#tvLight)"/>
+          <rect x="642.5" y="705.5" width="16" height="15" fill="url(#windowLight)"/>
+          <rect x="642.5" y="722.5" width="16" height="13.5" fill="url(#windowLight)"/>
         </g>
       </g>
 
-      <path class="hit" tabindex="0" role="button" aria-label="Unlit window: TV flicker"
+      <path class="hit" tabindex="0" role="button" aria-label="Unlit window: light flickers on"
             d="M637,700 L664,700 L664,742 L637,742 Z"/>
     </g>
   </svg>
