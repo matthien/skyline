@@ -37,10 +37,12 @@
   .hit { fill: #000; fill-opacity: 0; pointer-events: all; cursor: pointer; touch-action: manipulation; }
   .glow { pointer-events: none; opacity: 0; transition: opacity .35s ease; mix-blend-mode: screen; }
   .glow-bloom { filter: url(#bloom); }
-  .win:hover .glow-bloom,
-  .win:focus-within .glow-bloom { opacity: .26; }
-  .win:hover .glow-core,
-  .win:focus-within .glow-core { opacity: .11; }
+  .win:hover .glow-bloom { opacity: .26; }
+  .win:hover .glow-core  { opacity: .11; }
+  /* Keyboard focus only. :focus-within would keep the glow lit after a click,
+     because clicking the hotspot focuses it and focus outlives the pointer. */
+  .win:has(.hit:focus-visible) .glow-bloom { opacity: .26; }
+  .win:has(.hit:focus-visible) .glow-core  { opacity: .11; }
   .hit:focus-visible { outline: none; }
 
   /* ---- shared ---- */
