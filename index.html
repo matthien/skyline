@@ -16,17 +16,56 @@
     -webkit-tap-highlight-color: transparent;
   }
 
-  /* Cover the viewport: the stage keeps the image's aspect ratio and the overflow is
-     cropped by body's overflow:hidden, so hotspots stay glued to their windows. */
+  /* Safe-area layout. Every interactive window lies inside image box
+     x 173–1592, y 24–930 (centre 882.5, 477). --k is screen px per image px:
+     cover the viewport, unless that would crop the safe box — then shrink just
+     enough to fit it. The stage is offset to centre the safe box, clamped so the
+     picture never pulls away from an edge it can still cover. Any leftover strip
+     shows the blurred copy of the picture behind it (body::before).
+     The stage keeps the image's aspect ratio, so hotspots stay glued to windows. */
+  :root { --vw: 100vw; --vh: 100vh; }
+  @supports (height: 100dvh) { :root { --vh: 100dvh; } }
   .stage {
+    --k: min(max(var(--vw) / 1672, var(--vh) / 941), var(--vw) / 1419, var(--vh) / 906);
+    --spare-x: calc(var(--vw) - var(--k) * 1672);
+    --spare-y: calc(var(--vh) - var(--k) * 941);
     position: absolute;
-    left: 50%;
-    top: 50%;
-    transform: translate(-50%, -50%);
-    width: max(100vw, calc(100vh * 1672 / 941));
-    width: max(100vw, calc(100dvh * 1672 / 941));
+    left: clamp(min(var(--spare-x), var(--spare-x) / 2),
+                calc(var(--vw) / 2 - var(--k) * 882.5),
+                max(0px, var(--spare-x) / 2));
+    top:  clamp(min(var(--spare-y), var(--spare-y) / 2),
+                calc(var(--vh) / 2 - var(--k) * 477),
+                max(0px, var(--spare-y) / 2));
+    width: calc(var(--k) * 1672);
     aspect-ratio: 1672 / 941;
     user-select: none;
+    /* feather the edges (30 image px) into the blurred fill instead of a hard seam */
+    --feather: calc(var(--k) * 30);
+    -webkit-mask-image:
+      linear-gradient(to right, transparent, #000 var(--feather), #000 calc(100% - var(--feather)), transparent),
+      linear-gradient(to bottom, transparent, #000 var(--feather), #000 calc(100% - var(--feather)), transparent);
+    -webkit-mask-composite: source-in;
+    mask-image:
+      linear-gradient(to right, transparent, #000 var(--feather), #000 calc(100% - var(--feather)), transparent),
+      linear-gradient(to bottom, transparent, #000 var(--feather), #000 calc(100% - var(--feather)), transparent);
+    mask-composite: intersect;
+  }
+  body::before {
+    content: "";
+    position: fixed;
+    inset: -60px;
+    /* stretched, not cropped: each side of the screen picks up the colour of the
+       same side of the picture, so the fill continues the feathered edge */
+    background: url(skyline.png) center / 100% 100%;
+    filter: blur(28px) brightness(.8);
+  }
+  /* Phones: plain cover, centred, as before — some windows may be cropped. */
+  @media (max-width: 767px) {
+    .stage {
+      --k: max(var(--vw) / 1672, var(--vh) / 941);
+      left: calc(var(--spare-x) / 2);
+      top: calc(var(--spare-y) / 2);
+    }
   }
   .art { display: block; width: 100%; height: 100%; }
   .fx {
@@ -49,6 +88,22 @@
   .win:has(.hit:focus-visible) .glow-bloom { opacity: .26; }
   .win:has(.hit:focus-visible) .glow-core  { opacity: .11; }
   .hit:focus-visible { outline: none; }
+
+  /* Hint dot: marks a window as clickable. A halo swells off it and fades, so it
+     catches the eye; the whole dot hides while its window's animation plays. */
+  .dot { pointer-events: none; transition: opacity .3s ease; }
+  .win.playing .dot { opacity: 0; }
+  .dot circle { filter: url(#dotBlur); transform-box: fill-box; transform-origin: center; }
+  .dot-core { fill: #fffaf0; animation: dotBreathe 2.6s ease-in-out infinite; }
+  .dot-halo { fill: #ffe6c2; animation: dotRipple 2.6s ease-out infinite; }
+  @keyframes dotBreathe {
+    0%, 100% { opacity: .8; transform: scale(.9); }
+    15%      { opacity: 1;  transform: scale(1.1); }
+  }
+  @keyframes dotRipple {
+    0%   { opacity: .75; transform: scale(.45); }
+    70%, 100% { opacity: 0; transform: scale(1.25); }
+  }
 
   /* ---- shared ---- */
   .anim { opacity: 0; }
@@ -163,13 +218,61 @@
     100%  { opacity: 0; }      /* off again */
   }
 
+  /* ---- 5 & 6. potted plants grow and bloom (sprite sheet, 6 frames) ---- */
+  /* plant.png: 6 cells of 280 units, every pot centred on the same baseline, so
+     frames step straight through with no per-frame nudges. Frame 1 matches the
+     painted plant; 2–4 grow; 5–6 are in bloom and alternate to sway. */
+  .playing .plant-sheet { animation: plantGrow 3.2s step-end both; }
+  @keyframes plantGrow {
+    0%   { transform: translateX(0); }        /* 1 — the painted plant */
+    6%   { transform: translateX(-280px); }   /* 2 */
+    13%  { transform: translateX(-560px); }   /* 3 — bud */
+    20%  { transform: translateX(-840px); }   /* 4 — opening */
+    27%  { transform: translateX(-1120px); }  /* 5 — in bloom */
+    40%  { transform: translateX(-1400px); }  /* 6 — sway */
+    50%  { transform: translateX(-1120px); }
+    60%  { transform: translateX(-1400px); }
+    70%  { transform: translateX(-1120px); }
+    80%  { transform: translateX(-840px); }   /* wilting back */
+    86%  { transform: translateX(-560px); }
+    92%  { transform: translateX(-280px); }
+    97%  { transform: translateX(0); }
+    100% { transform: translateX(0); }
+  }
+
+  /* ---- 7 & 8. curtains close and reopen (sprite sheet, 5 frames) ---- */
+  /* curtain.png: 5 cells of 360 units, each cropped to its rod so rod and hem line up.
+     1 open · 2 half · 3 closed · 4 closed with a peek gap · 5 closed. The open
+     curtains aren't in the painting, so the whole sprite fades in and out. */
+  .playing .curtain-fade { animation: curtainFade 3.2s linear both; }
+  @keyframes curtainFade {
+    0%       { opacity: 0; }
+    6%, 92%  { opacity: 1; }
+    100%     { opacity: 0; }
+  }
+  .playing .curtain-sheet { animation: curtainClose 3.2s step-end both; }
+  @keyframes curtainClose {
+    0%   { transform: translateX(0); }        /* 1 — open */
+    10%  { transform: translateX(-360px); }   /* 2 — drawing */
+    17%  { transform: translateX(-720px); }   /* 3 — closed */
+    50%  { transform: translateX(-1080px); }  /* 4 — someone peeks */
+    58%  { transform: translateX(-1440px); }  /* 5 — closed again */
+    78%  { transform: translateX(-720px); }   /* 3 */
+    83%  { transform: translateX(-360px); }   /* 2 — drawing back */
+    89%  { transform: translateX(0); }        /* 1 — open */
+    100% { transform: translateX(0); }
+  }
+
   @media (prefers-reduced-motion: reduce) {
     .playing .cat-hop, .playing .cat-tail, .playing .cat-head,
     .playing .blind, .playing .person-rise, .playing .dancer-sheet,
-    .playing .flicker {
+    .playing .flicker, .playing .plant-sheet,
+    .playing .curtain-fade, .playing .curtain-sheet {
       animation-duration: .01ms;
       animation-iteration-count: 1;
     }
+    .dot-core { animation: none; opacity: 1; }
+    .dot-halo { animation: none; opacity: .3; transform: scale(.7); }
   }
 </style>
 </head>
@@ -195,6 +298,29 @@
         <path d="M187,656 L233,656 L233,703 L187,703 Z M187,706 L233,706 L233,750 L187,750 Z"/>
       </clipPath>
 
+      <clipPath id="clipPlantRB">
+        <path d="M1440,677 L1576,671 L1576,818 L1440,820 Z"/>
+      </clipPath>
+      <!-- both panes, minus the mid-rail -->
+      <clipPath id="clipPlantLT">
+        <path d="M299,487 H349 V534 H299 Z M299,538 H349 V583.5 H299 Z"/>
+      </clipPath>
+
+      <!-- back-right building, wide lit windows: both panes, minus the mid-rail -->
+      <clipPath id="clipCurtainMid"><path d="M1165,751 H1190 V768 H1165 Z M1165,770 H1190 V787 H1165 Z"/></clipPath>
+      <clipPath id="clipCurtainLow"><path d="M1165,879 H1190 V896 H1165 Z M1165,898 H1190 V915 H1165 Z"/></clipPath>
+
+      <!-- back-right building, narrow lit windows: both panes, minus the mid-rail -->
+      <clipPath id="clipBlindA"><path d="M1234,688 H1248 V705 H1234 Z M1234,707 H1248 V723.5 H1234 Z"/></clipPath>
+      <clipPath id="clipBlindB"><path d="M1068,752 H1083 V768 H1068 Z M1068,770 H1083 V787 H1068 Z"/></clipPath>
+      <!-- the same slats at the scale of the distant building (pitch 2.2, ~2px like the
+           blinds already painted in window B) -->
+      <pattern id="slatsSmall" x="0" y="0" width="2.2" height="2.2" patternUnits="userSpaceOnUse">
+        <rect x="0" y="0"   width="2.2" height=".45" fill="#eb9a68"/>
+        <rect x="0" y=".45" width="2.2" height=".2"  fill="#b5755f"/>
+        <rect x="0" y=".65" width="2.2" height="1.55" fill="#84545f"/>
+      </pattern>
+
       <!-- slats matched to the blinds already painted in the window -->
       <pattern id="slats" x="0" y="377" width="10.4" height="10.4" patternUnits="userSpaceOnUse">
         <rect x="0" y="0"   width="10.4" height="1.7" fill="#eb9a68"/>
@@ -211,6 +337,11 @@
       </linearGradient>
       <filter id="flickerBloom" x="-80%" y="-80%" width="260%" height="260%">
         <feGaussianBlur stdDeviation="3.5"/>
+      </filter>
+
+      <!-- blur in bounding-box units, so it scales with each dot's radius -->
+      <filter id="dotBlur" x="-1" y="-1" width="3" height="3" primitiveUnits="objectBoundingBox">
+        <feGaussianBlur stdDeviation=".22"/>
       </filter>
 
       <linearGradient id="blindLight" x1="0" y1="1" x2="1" y2="0">
@@ -240,6 +371,11 @@
         </g>
       </g>
 
+      <g class="dot">
+        <circle class="dot-halo" cx="1562" cy="57" r="16.9"/>
+        <circle class="dot-core" cx="1562" cy="57" r="6.5"/>
+      </g>
+
       <path class="hit" tabindex="0" role="button" aria-label="Top window: cat"
             d="M1433,62 L1580,34 L1580,252 L1433,274 Z"/>
     </g>
@@ -256,6 +392,11 @@
             <rect x="1405" y="377" width="190" height="205" fill="url(#blindLight)"/>
           </g>
         </g>
+      </g>
+
+      <g class="dot">
+        <circle class="dot-halo" cx="1562" cy="375" r="16.9"/>
+        <circle class="dot-core" cx="1562" cy="375" r="6.5"/>
       </g>
 
       <path class="hit" tabindex="0" role="button" aria-label="Middle window: blinds"
@@ -279,6 +420,11 @@
         </g>
       </g>
 
+      <g class="dot">
+        <circle class="dot-halo" cx="226" cy="663" r="11.4"/>
+        <circle class="dot-core" cx="226" cy="663" r="4.4"/>
+      </g>
+
       <path class="hit" tabindex="0" role="button" aria-label="Center window: dancer"
             d="M183,651 L237,651 L237,754 L183,754 Z"/>
     </g>
@@ -299,8 +445,163 @@
         </g>
       </g>
 
+      <g class="dot">
+        <circle class="dot-halo" cx="655" cy="709" r="7.8"/>
+        <circle class="dot-core" cx="655" cy="709" r="3"/>
+      </g>
+
       <path class="hit" tabindex="0" role="button" aria-label="Unlit window: light flickers on"
             d="M637,700 L664,700 L664,742 L637,742 Z"/>
+    </g>
+
+    <!-- ===== 5. right building, bottom window: plant grows ===== -->
+    <g class="win" data-dur="3200">
+      <path class="glow glow-bloom" fill="#ffc078" d="M1440,677 L1576,671 L1576,818 L1440,820 Z"/>
+      <path class="glow glow-core"  fill="#ffd8a4" d="M1440,677 L1576,671 L1576,818 L1440,820 Z"/>
+
+      <g class="anim" clip-path="url(#clipPlantRB)">
+        <!-- the window with its painted plant removed, so only the sprite shows -->
+        <image href="animation/plant-patch-rb.png" x="1500" y="779" width="38" height="41"/>
+        <!-- translate puts the sheet's pot (cell 140,414) on the painted pot -->
+        <g transform="translate(1494.48 750.45) scale(0.168)">
+          <svg x="0" y="0" width="280" height="419" viewBox="0 0 280 419">
+            <image class="plant-sheet" href="animation/plant.png"
+                   x="0" y="0" width="1680" height="419"/>
+          </svg>
+        </g>
+      </g>
+
+      <g class="dot">
+        <circle class="dot-halo" cx="1562" cy="686" r="16.9"/>
+        <circle class="dot-core" cx="1562" cy="686" r="6.5"/>
+      </g>
+
+      <path class="hit" tabindex="0" role="button" aria-label="Bottom window: plant blooms"
+            d="M1434,671 L1582,665 L1582,824 L1434,826 Z"/>
+    </g>
+
+    <!-- ===== 6. left building, top row, right window: plant grows ===== -->
+    <g class="win" data-dur="3200">
+      <path class="glow glow-bloom" fill="#ffc078" d="M299,487 H349 V534 H299 Z M299,538 H349 V583.5 H299 Z"/>
+      <path class="glow glow-core"  fill="#ffd8a4" d="M299,487 H349 V534 H299 Z M299,538 H349 V583.5 H299 Z"/>
+
+      <g class="anim" clip-path="url(#clipPlantLT)">
+        <!-- the window with its painted plant removed, so only the sprite shows -->
+        <image href="animation/plant-patch-lt.png" x="300" y="557" width="25" height="27"/>
+        <!-- translate puts the sheet's pot (cell 140,414) on the painted pot -->
+        <g transform="translate(290.5 539.25) scale(0.125)">
+          <svg x="0" y="0" width="280" height="419" viewBox="0 0 280 419">
+            <image class="plant-sheet" href="animation/plant.png"
+                   x="0" y="0" width="1680" height="419"/>
+          </svg>
+        </g>
+      </g>
+
+      <g class="dot">
+        <circle class="dot-halo" cx="342" cy="494" r="11.4"/>
+        <circle class="dot-core" cx="342" cy="494" r="4.4"/>
+      </g>
+
+      <path class="hit" tabindex="0" role="button" aria-label="Top-left window: plant blooms"
+            d="M294,482 L354,482 L354,588 L294,588 Z"/>
+    </g>
+
+    <!-- ===== 7. back-right building, wide window, 3rd row: curtains close ===== -->
+    <g class="win" data-dur="3200">
+      <path class="glow glow-bloom" fill="#ffc078" d="M1165,751 H1190 V768 H1165 Z M1165,770 H1190 V787 H1165 Z"/>
+      <path class="glow glow-core"  fill="#ffd8a4" d="M1165,751 H1190 V768 H1165 Z M1165,770 H1190 V787 H1165 Z"/>
+
+      <g class="anim" clip-path="url(#clipCurtainMid)">
+        <g class="curtain-fade">
+          <!-- cell 0..360 spans x 1163–1191 so the edges tuck behind the frame;
+               rod (cell y 6) at the glass top, hem (y 392) at the sill -->
+          <g transform="translate(1163 749.42) scale(0.0778 0.0959)">
+            <svg x="0" y="0" width="360" height="396" viewBox="0 0 360 396">
+              <image class="curtain-sheet" href="animation/curtain.png"
+                     x="0" y="0" width="1800" height="396"/>
+            </svg>
+          </g>
+        </g>
+      </g>
+
+      <g class="dot">
+        <circle class="dot-halo" cx="1185" cy="756" r="7.8"/>
+        <circle class="dot-core" cx="1185" cy="756" r="3"/>
+      </g>
+
+      <path class="hit" tabindex="0" role="button" aria-label="Back building window: curtains close"
+            d="M1160,746 H1195 V792 H1160 Z"/>
+    </g>
+
+    <!-- ===== 8. back-right building, wide window, 5th row: curtains close ===== -->
+    <g class="win" data-dur="3200">
+      <path class="glow glow-bloom" fill="#ffc078" d="M1165,879 H1190 V896 H1165 Z M1165,898 H1190 V915 H1165 Z"/>
+      <path class="glow glow-core"  fill="#ffd8a4" d="M1165,879 H1190 V896 H1165 Z M1165,898 H1190 V915 H1165 Z"/>
+
+      <g class="anim" clip-path="url(#clipCurtainLow)">
+        <g class="curtain-fade">
+          <!-- cell 0..360 spans x 1163–1191 so the edges tuck behind the frame;
+               rod (cell y 6) at the glass top, hem (y 392) at the sill -->
+          <g transform="translate(1163 877.42) scale(0.0778 0.0959)">
+            <svg x="0" y="0" width="360" height="396" viewBox="0 0 360 396">
+              <image class="curtain-sheet" href="animation/curtain.png"
+                     x="0" y="0" width="1800" height="396"/>
+            </svg>
+          </g>
+        </g>
+      </g>
+
+      <g class="dot">
+        <circle class="dot-halo" cx="1185" cy="884" r="7.8"/>
+        <circle class="dot-core" cx="1185" cy="884" r="3"/>
+      </g>
+
+      <path class="hit" tabindex="0" role="button" aria-label="Lower back building window: curtains close"
+            d="M1160,874 H1195 V920 H1160 Z"/>
+    </g>
+
+    <!-- ===== 9. back-right building, narrow right column, 2nd row: blinds ===== -->
+    <g class="win" data-dur="2600">
+      <path class="glow glow-bloom" fill="#ffc078" d="M1234,688 H1248 V705 H1234 Z M1234,707 H1248 V723.5 H1234 Z"/>
+      <path class="glow glow-core"  fill="#ffd8a4" d="M1234,688 H1248 V705 H1234 Z M1234,707 H1248 V723.5 H1234 Z"/>
+
+      <!-- same drop-and-rise as window 2, but flat-on: no perspective tilt here -->
+      <g class="anim" clip-path="url(#clipBlindA)">
+        <g class="blind">
+          <rect x="1232" y="688" width="18" height="40" fill="url(#slatsSmall)"/>
+          <rect x="1232" y="688" width="18" height="40" fill="url(#blindLight)"/>
+        </g>
+      </g>
+
+      <g class="dot">
+        <circle class="dot-halo" cx="1244" cy="692" r="6.8"/>
+        <circle class="dot-core" cx="1244" cy="692" r="2.6"/>
+      </g>
+
+      <path class="hit" tabindex="0" role="button" aria-label="Narrow back window: blinds"
+            d="M1229,683 H1253 V728 H1229 Z"/>
+    </g>
+
+    <!-- ===== 10. back-right building, 3rd column, 3rd row: blinds ===== -->
+    <g class="win" data-dur="2600">
+      <path class="glow glow-bloom" fill="#ffc078" d="M1068,752 H1083 V768 H1068 Z M1068,770 H1083 V787 H1068 Z"/>
+      <path class="glow glow-core"  fill="#ffd8a4" d="M1068,752 H1083 V768 H1068 Z M1068,770 H1083 V787 H1068 Z"/>
+
+      <!-- same drop-and-rise as window 2, but flat-on: no perspective tilt here -->
+      <g class="anim" clip-path="url(#clipBlindB)">
+        <g class="blind">
+          <rect x="1066" y="752" width="19" height="40" fill="url(#slatsSmall)"/>
+          <rect x="1066" y="752" width="19" height="40" fill="url(#blindLight)"/>
+        </g>
+      </g>
+
+      <g class="dot">
+        <circle class="dot-halo" cx="1079" cy="756" r="6.8"/>
+        <circle class="dot-core" cx="1079" cy="756" r="2.6"/>
+      </g>
+
+      <path class="hit" tabindex="0" role="button" aria-label="Narrow back window, lower: blinds"
+            d="M1063,747 H1088 V792 H1063 Z"/>
     </g>
   </svg>
 </div>
